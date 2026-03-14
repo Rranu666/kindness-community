@@ -1,0 +1,149 @@
+import { useState, useRef, useEffect } from 'react';
+import { Mic, StopCircle, Send, Loader } from 'lucide-react';
+
+export default function VoiceDictation({ onMessageTranscribed, teamMembers, user, selectedType, selectedRecipient, selectedGroup }) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [selectedRecipientVoice, setSelectedRecipientVoice] = useState(selectedRecipient || '');
+  const recognitionRef = useRef(null);
+
+  const speechSupported = typeof window !== 'undefined' &&
+    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) recognitionRef.current.stop();
+    };
+  }, []);
+
+  const startRecording = () => {
+    if (!speechSupported) return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognitionRef.current = recognition;
+
+    let finalTranscript = '';
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setTranscript(finalTranscript + interim);
+    };
+
+    recognition.onerror = (e) => {
+      console.error('Speech recognition error:', e.error);
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => setIsRecording(false);
+
+    recognition.start();
+    setIsRecording(true);
+    setTranscript('');
+  };
+
+  const stopRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const sendTranscript = () => {
+    if (!transcript.trim()) return;
+    const recipientName = selectedType === 'direct'
+      ? teamMembers.find(m => m.email === selectedRecipientVoice)?.full_name || 'Unknown'
+      : 'Group Message';
+    onMessageTranscribed(transcript.trim(), recipientName);
+    setTranscript('');
+  };
+
+  const discardTranscript = () => setTranscript('');
+
+  if (!speechSupported) {
+    return (
+      <div className="bg-slate-700/40 rounded-lg p-4 text-center text-slate-400 text-sm">
+        Voice dictation requires a browser that supports the Web Speech API (Chrome, Edge, Safari).
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Recipient Selection for Voice Message */}
+      {selectedType === 'direct' && (
+        <div>
+          <label className="block text-xs text-slate-400 mb-2">Send Voice Message To</label>
+          <select
+            value={selectedRecipientVoice}
+            onChange={(e) => setSelectedRecipientVoice(e.target.value)}
+            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="">Select a team member...</option>
+            {teamMembers
+              .filter((m) => m.email !== user?.email)
+              .map((member) => (
+                <option key={member.id} value={member.email}>
+                  {member.full_name}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+
+      {/* Recording Controls */}
+      <div className="space-y-3">
+        <button
+          onClick={isRecording ? stopRecording : startRecording}
+          className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-all ${
+            isRecording
+              ? 'bg-red-600 hover:bg-red-700 text-white'
+              : 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white'
+          }`}
+        >
+          {isRecording ? (
+            <><StopCircle size={20} /> Stop Recording</>
+          ) : (
+            <><Mic size={20} /> Start Voice Message</>
+          )}
+        </button>
+
+        {/* Live transcript preview */}
+        {(isRecording || transcript) && (
+          <div className="bg-slate-700/60 rounded-lg p-3 min-h-[60px] text-sm text-slate-200 border border-slate-600">
+            {transcript || <span className="text-slate-500 italic">Listening…</span>}
+          </div>
+        )}
+
+        {transcript && !isRecording && (
+          <div className="flex gap-2">
+            <button
+              onClick={sendTranscript}
+              disabled={isTranscribing}
+              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all font-medium"
+            >
+              {isTranscribing
+                ? <><Loader size={18} className="animate-spin" /> Sending…</>
+                : <><Send size={18} /> Use This Message</>}
+            </button>
+            <button
+              onClick={discardTranscript}
+              className="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-2 rounded-lg transition-all font-medium"
+            >
+              Discard
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
