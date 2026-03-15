@@ -28,8 +28,24 @@ export default function Footer() {
       navigate("/" + href);
       return;
     }
-    const el = document.querySelector(href);
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+    window.history.replaceState(null, "", href);
+    window.dispatchEvent(new Event('kcf:forceLoad'));
+    setTimeout(() => {
+      const el = document.querySelector(href);
+      if (el) {
+        const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - 80);
+        window.scrollTo({ top, behavior: "smooth" });
+      } else {
+        const retry = (n = 0) => {
+          const t = document.querySelector(href);
+          if (t) {
+            const top = Math.max(0, t.getBoundingClientRect().top + window.scrollY - 80);
+            window.scrollTo({ top, behavior: "smooth" });
+          } else if (n < 10) setTimeout(() => retry(n + 1), 200);
+        };
+        retry();
+      }
+    }, 800);
   };
 
   return (

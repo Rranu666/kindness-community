@@ -40,12 +40,30 @@ export default function Header() {
   const scrollTo = (href) => {
     setMobileOpen(false);
     if (!isHome) {
-      // Navigate to home page with the hash so it scrolls after load
       navigate("/" + href);
       return;
     }
-    const el = document.querySelector(href);
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+    window.history.replaceState(null, "", href);
+    // Force any not-yet-visible lazy sections to render
+    window.dispatchEvent(new Event('kcf:forceLoad'));
+    // Wait 800ms for React to render all forced sections and layout to settle
+    setTimeout(() => {
+      const el = document.querySelector(href);
+      if (el) {
+        const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - 80);
+        window.scrollTo({ top, behavior: "smooth" });
+      } else {
+        // Fallback retry in case some sections are still loading
+        const retry = (n = 0) => {
+          const t = document.querySelector(href);
+          if (t) {
+            const top = Math.max(0, t.getBoundingClientRect().top + window.scrollY - 80);
+            window.scrollTo({ top, behavior: "smooth" });
+          } else if (n < 10) setTimeout(() => retry(n + 1), 200);
+        };
+        retry();
+      }
+    }, 800);
   };
 
   return (

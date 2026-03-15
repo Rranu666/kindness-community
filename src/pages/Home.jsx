@@ -32,7 +32,12 @@ function LazySection({ children, rootMargin = "200px" }) {
       { rootMargin }
     );
     observer.observe(ref.current);
-    return () => observer.disconnect();
+    const forceLoad = () => setVisible(true);
+    window.addEventListener('kcf:forceLoad', forceLoad);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('kcf:forceLoad', forceLoad);
+    };
   }, [rootMargin]);
 
   return (

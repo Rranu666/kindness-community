@@ -69,8 +69,13 @@ export default function SiteSearch({ isOpen, onClose }) {
     if (!text.trim()) return;
     setLoading(true);
     setAnswer("");
-    const res = await base44.integrations.Core.InvokeLLM({
-      prompt: `You are a helpful assistant for the Kindness Community Foundation (KCF) website. Answer the user's question based on the following site information. Be concise, friendly, and accurate. If the question is not related to KCF or the site, politely redirect them.
+    try {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 15000)
+      );
+      const res = await Promise.race([
+        base44.integrations.Core.InvokeLLM({
+          prompt: `You are a helpful assistant for the Kindness Community Foundation (KCF) website. Answer the user's question based on the following site information. Be concise, friendly, and accurate. If the question is not related to KCF or the site, politely redirect them.
 
 SITE INFORMATION:
 ${SITE_CONTEXT}
@@ -78,9 +83,15 @@ ${SITE_CONTEXT}
 USER QUESTION: ${text}
 
 Answer in 2-4 sentences max. Be warm and use KCF's tone of kindness and community.`,
-    });
-    setAnswer(typeof res === "string" ? res : res?.result || res?.response || "Sorry, I couldn't find an answer. Please try rephrasing your question.");
-    setLoading(false);
+        }),
+        timeoutPromise,
+      ]);
+      setAnswer(typeof res === "string" ? res : res?.result || res?.response || "Sorry, I couldn't find an answer. Please try rephrasing your question.");
+    } catch (err) {
+      setAnswer("Sorry, I couldn't connect right now. Please try again in a moment or email us at contact@kindnesscommunityfoundation.com.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const startListening = () => {
